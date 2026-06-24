@@ -21,7 +21,7 @@ def send_telegram_message(chat_id: int, text: str, job_url: str) -> None:
         "text": text,
         "parse_mode": "HTML",
         "reply_markup": {
-            "inline_keyboard": [[{"text": "🔗 مشاهده و ارسال رزومه", "url": job_url}]]
+            "inline_keyboard": [[{"text": "🟢 مشاهده و ارسال رزومه", "url": job_url}]]
         },
     }
     response = requests.post(url, json=payload, timeout=15, proxies=proxies)
