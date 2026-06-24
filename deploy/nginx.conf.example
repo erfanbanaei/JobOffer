@@ -1,0 +1,36 @@
+# Drop this into your existing nginx setup, e.g.
+# /etc/nginx/sites-available/joboffer.conf, then:
+#   ln -s /etc/nginx/sites-available/joboffer.conf /etc/nginx/sites-enabled/
+#   nginx -t && systemctl reload nginx
+# Then issue a certificate for this server_name with your usual certbot flow:
+#   certbot --nginx -d bot.yourdomain.com
+#
+# Replace bot.yourdomain.com below with your real domain. gunicorn (in the
+# `web` container) is published to 127.0.0.1:8000 only - not reachable from
+# outside the server - so this nginx is the only public entry point.
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name bot.yourdomain.com;
+
+    location / {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # Telegram polls the Mini App frequently; keep proxy timeouts generous
+    # in case gunicorn is briefly busy with a scrape-triggered request.
+    proxy_read_timeout 30s;
+    proxy_connect_timeout 10s;
+
+    client_max_body_size 5m;
+}
+
+# After running certbot, it will add a second server block on port 443 with
+# ssl_certificate directives and update this block to redirect :80 -> :443.
+# No separate /static/ location is needed - WhiteNoise serves static files
+# directly from inside the gunicorn process.

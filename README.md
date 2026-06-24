@@ -81,17 +81,13 @@ celery -A jobbot beat -l info      # در ترمینال جدا
 - **فرانت‌اند**: یه صفحه‌ی تک ([webapp/templates/webapp/index.html](webapp/templates/webapp/index.html)) با تب‌های افزودن سرچ/سرچ‌های من/حساب/پشتیبانی/راهنما، و منطق در [webapp/static/webapp/js/app.js](webapp/static/webapp/js/app.js). از SDK رسمی `telegram-web-app.js` برای تم، دکمه‌ی اصلی (MainButton) و دکمه‌ی بازگشت (BackButton) در ویزارد استفاده می‌شه.
 - منطق ساخت سرچ بین بات و مینی‌اپ مشترکه ([jobs/services.py](jobs/services.py)) تا رفتارشون کاملاً یکسان بمونه.
 
-### راه‌اندازی روی سرور خودت (قدم‌به‌قدم)
+### راه‌اندازی روی سرور خودت (با nginx موجود + gunicorn)
 
-تلگرام فقط URL با `https://` رو برای دکمه‌ی Mini App قبول می‌کنه، پس باید پشت یه دومین واقعی با گواهی SSL باشی. یه سرویس **Caddy** به `docker-compose.yml` اضافه شده که این کار رو خودکار انجام می‌ده (گواهی Let's Encrypt رایگان، بدون تنظیم دستی).
+سرویس `web` حالا با **gunicorn** اجرا می‌شه (نه `runserver` که فقط برای توسعه مناسبه) و فقط روی `127.0.0.1:8000` خود سرور منتشر می‌شه — یعنی از اینترنت مستقیماً در دسترس نیست، فقط nginx خودت (که از قبل روی سرور نصبه و سایت‌های دیگه رو هم سرو می‌کنه) می‌تونه بهش وصل شه.
 
-1. **یه سرور تهیه کن** (هر VPS با Ubuntu 22.04+ کافیه) و [Docker + docker compose](https://docs.docker.com/engine/install/) رو نصب کن.
+1. **پروژه رو روی سرور بیار** (کلون گیت یا کپی فایل‌ها) و وارد پوشه‌ش شو.
 
-2. **دومینت رو به آی‌پی سرور وصل کن** — یه رکورد DNS از نوع `A` بساز که دومینت (مثلاً `bot.yourdomain.com`) رو به آی‌پی سرور اشاره بده. چند دقیقه صبر کن تا DNS پراپاگیت شه.
-
-3. **پروژه رو روی سرور بیار** (کلون گیت یا کپی فایل‌ها) و وارد پوشه‌ش شو.
-
-4. **فایل `.env` رو بساز و کامل کن:**
+2. **فایل `.env` رو بساز و کامل کن:**
    ```bash
    cp .env.example .env
    ```
@@ -101,29 +97,44 @@ celery -A jobbot beat -l info      # در ترمینال جدا
    DJANGO_DEBUG=False
    DJANGO_ALLOWED_HOSTS=bot.yourdomain.com
    TELEGRAM_BOT_TOKEN=<توکن از BotFather>
-   DOMAIN=bot.yourdomain.com
    MINI_APP_URL=https://bot.yourdomain.com/app/
    ```
-   (پراکسی تلگرام `TELEGRAM_PROXY_URL` رو هم اگه سرور خودش پشت فیلترشکن نیست، خالی بگذار — فقط ترافیک به `api.telegram.org` لازمه، نه اسکرپ سایت‌های کاریابی.)
+   (پراکسی تلگرام `TELEGRAM_PROXY_URL` رو هم اگه سرور خودش پشت فیلترشکن نیست، خالی بگذار.)
 
-5. **پورت‌های ۸۰ و ۴۴۳ رو در فایروال سرور باز کن** (لازم برای صدور خودکار گواهی SSL توسط Caddy).
-
-6. **همه‌چیز رو بالا بیار:**
+3. **کانتینرها رو بالا بیار:**
    ```bash
    docker compose up -d --build
    ```
-   چند ثانیه طول می‌کشه تا Caddy گواهی SSL رو از Let's Encrypt بگیره. بعدش `https://bot.yourdomain.com/app/` باید مینی‌اپ رو نشون بده (در مرورگر معمولی هم باز می‌شه، فقط چک عضویت کانال و initData واقعی نداره چون از داخل تلگرام نیومدی).
+   این کار `migrate`، `collectstatic`، و بعد gunicorn رو روی `127.0.0.1:8000` بالا می‌آره.
 
-7. **یوزر ادمین بساز (اختیاری، برای پنل `/admin`):**
+4. **یه سرور-بلاک به nginx خودت اضافه کن** — نمونه‌ی کامل در [deploy/nginx.conf.example](deploy/nginx.conf.example) هست؛ خلاصه‌ش:
+   ```nginx
+   server {
+       listen 80;
+       server_name bot.yourdomain.com;
+       location / {
+           proxy_pass http://127.0.0.1:8000;
+           proxy_set_header Host $host;
+           proxy_set_header X-Real-IP $remote_addr;
+           proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+           proxy_set_header X-Forwarded-Proto $scheme;
+       }
+   }
+   ```
+   این رو در `/etc/nginx/sites-available/` بگذار، لینکش رو به `sites-enabled/` بزن، و `nginx -t && systemctl reload nginx` رو بزن.
+
+5. **گواهی SSL رو با همون روش معمولت بگیر** (مثلاً `certbot --nginx -d bot.yourdomain.com`) — دقیقاً مثل بقیه‌ی سایت‌هایی که روی این nginx داری.
+
+6. **یوزر ادمین بساز (اختیاری، برای پنل `/admin`):**
    ```bash
    docker compose exec web python manage.py createsuperuser
    ```
 
 با بالا آمدن سرویس `bot`، دکمه‌ی منوی تلگرام (کنار باکس پیام) خودکار به مینی‌اپ وصل می‌شه، و یه دکمه‌ی «🚀 اپلیکیشن» هم به کیبورد اصلی بات اضافه می‌شه.
 
-> اگه بعداً `.env` رو عوض کردی (خصوصاً `DOMAIN` یا `MINI_APP_URL`)، باید `docker compose up -d --build` یا حداقل `docker compose restart caddy web bot` رو دوباره بزنی.
+> هیچ `/static/` location جدایی در nginx لازم نیست — WhiteNoise مستقیماً از داخل پروسه‌ی gunicorn فایل‌های استاتیک (CSS/JS مینی‌اپ) رو سرو می‌کنه.
 
-> فعلاً سرویس `web` همچنان با `runserver` (سرور توسعه‌ی Django) اجرا می‌شه که برای ترافیک واقعی production مناسب نیست. برای استقرار جدی، جایگزینش با Gunicorn/Uvicorn پشت نیجینکس/Caddy توصیه می‌شه — این تغییر در این مرحله انجام نشده.
+> اگه `.env` رو عوض کردی، کافیه `docker compose restart web bot` رو بزنی (بدون نیاز به rebuild، چون فقط env عوض شده).
 
 ## منابع آگهی (Providers)
 
@@ -151,5 +162,4 @@ celery -A jobbot beat -l info      # در ترمینال جدا
 - ای‌استخدام تاریخ دقیق انتشار آگهی رو در پاسخش نمی‌ده؛ فقط یک پرچم «جدید» دارد، پس فیلد زمان انتشار برای این منبع ضعیف‌تره.
 - ایران‌تلنت فقط استان‌هایی که فعلاً آگهی فعال دارن رو در لیست شهرهاش برمی‌گردونه؛ ۳ استان (ایلام، خراسان شمالی، کهگیلویه و بویراحمد) فعلاً در لیست داخلی [irantalent.py](jobs/providers/irantalent.py) نیستن و انتخابشون فقط فیلتر شهر رو نادیده می‌گیره (بدون خطا).
 - اگه ساختار HTML/API این سایت‌ها تغییر کنه، پارسر/کلاینت مربوطه در `jobs/providers/` باید آپدیت شه. روش‌های scrape مبتنی بر کشف غیررسمی (باندل JS یا رفتار SEO) شکننده‌تر از API رسمی هستن.
-- مینی‌اپ نیاز به دومین HTTPS واقعی داره (TLS termination در این پروژه پیاده نشده — باید خودت با Caddy/nginx اضافه‌ش کنی).
-- سرویس `web` همچنان از سرور توسعه‌ی Django (`runserver`) استفاده می‌کنه؛ برای ترافیک واقعی production بهتره با Gunicorn/Uvicorn جایگزین شه.
+- مینی‌اپ نیاز به دومین HTTPS واقعی داره. `web` با gunicorn روی `127.0.0.1:8000` بالا می‌آد؛ TLS termination رو خودت با nginx/certbot موجود روی سرورت انجام می‌دی ([deploy/nginx.conf.example](deploy/nginx.conf.example)).

@@ -35,6 +35,11 @@ DEBUG = os.environ.get("DJANGO_DEBUG", "True") == "True"
 
 ALLOWED_HOSTS = [h for h in os.environ.get("DJANGO_ALLOWED_HOSTS", "").split(",") if h]
 
+# nginx terminates TLS and forwards plain HTTP to gunicorn with this header set,
+# so Django needs to know to treat the request as secure (affects CSRF cookies,
+# redirects, request.is_secure(), etc.)
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 # Telegram is blocked in Iran - set this to a local SOCKS5/HTTP proxy (e.g. V2Ray/Xray)
 # so the bot and the Celery worker can reach api.telegram.org. Example: socks5://127.0.0.1:10808
