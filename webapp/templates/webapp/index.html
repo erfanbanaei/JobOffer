@@ -1,0 +1,143 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>شغل‌یاب</title>
+  <link rel="stylesheet" href="{% static 'webapp/css/app.css' %}">
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+</head>
+<body>
+  <div id="app">
+
+    <section id="view-loading" class="view">
+      <div class="loading-spinner"></div>
+    </section>
+
+    <section id="view-join" class="view hidden">
+      <div class="join-card">
+        <div class="join-icon">📢</div>
+        <h2>عضویت در کانال لازمه</h2>
+        <p>برای استفاده از ربات، اول باید عضو کانال ما بشی:</p>
+        <p class="channel-name" id="join-channel-name"></p>
+        <a id="join-channel-link" class="btn btn-primary" target="_blank">عضویت در کانال</a>
+        <button id="join-check-btn" class="btn btn-outline">✅ عضو شدم، بررسی کن</button>
+      </div>
+    </section>
+
+    <div id="view-main" class="hidden">
+      <header class="topbar">
+        <span class="topbar-title">💼 شغل‌یاب</span>
+      </header>
+
+      <main id="content">
+
+        <!-- My Searches -->
+        <section id="view-searches" class="view">
+          <h1 class="view-title">📋 سرچ‌های من</h1>
+          <div id="searches-empty" class="empty-state hidden">
+            <p>هنوز هیچ سرچی اضافه نکردی.</p>
+            <button class="btn btn-primary" data-go="add">➕ افزودن سرچ</button>
+          </div>
+          <div id="searches-list" class="card-list"></div>
+        </section>
+
+        <!-- Add search wizard -->
+        <section id="view-add" class="view hidden">
+          <h1 class="view-title">➕ افزودن سرچ</h1>
+
+          <div class="step-indicator">
+            <span class="step-dot" data-step="1"></span>
+            <span class="step-dot" data-step="2"></span>
+            <span class="step-dot" data-step="3"></span>
+            <span class="step-dot" data-step="4"></span>
+          </div>
+
+          <div id="wizard-step-1" class="wizard-step">
+            <p class="wizard-label">چی می‌خوای جستجو کنی؟</p>
+            <input type="text" id="wizard-keyword" class="text-input" placeholder="مثلاً flutter یا حسابدار" autocomplete="off">
+          </div>
+
+          <div id="wizard-step-2" class="wizard-step hidden">
+            <p class="wizard-label">چه سایت‌هایی؟ (چندتا می‌تونی انتخاب کنی)</p>
+            <div id="wizard-providers" class="choice-list"></div>
+          </div>
+
+          <div id="wizard-step-3" class="wizard-step hidden">
+            <p class="wizard-label">شهر/استان؟</p>
+            <div id="wizard-cities" class="choice-list scrollable"></div>
+          </div>
+
+          <div id="wizard-step-4" class="wizard-step hidden">
+            <p class="wizard-label">نوع همکاری؟ (چندتا می‌تونی انتخاب کنی)</p>
+            <div id="wizard-job-types" class="choice-list"></div>
+          </div>
+
+          <div id="wizard-success" class="wizard-step hidden">
+            <div class="success-icon">✅</div>
+            <p id="wizard-success-text"></p>
+            <button class="btn btn-primary" data-go="searches">مشاهده سرچ‌های من</button>
+          </div>
+
+          <button id="wizard-fallback-btn" class="btn btn-primary hidden"></button>
+        </section>
+
+        <!-- Account -->
+        <section id="view-account" class="view hidden">
+          <h1 class="view-title">👤 حساب کاربری</h1>
+          <div class="card account-card">
+            <div class="account-row"><span class="account-label">نام</span><span id="acc-first-name" class="account-value"></span></div>
+            <div class="account-row"><span class="account-label">نام خانوادگی</span><span id="acc-last-name" class="account-value"></span></div>
+            <div class="account-row"><span class="account-label">آیدی</span><span id="acc-username" class="account-value"></span></div>
+            <div class="account-row"><span class="account-label">آیدی عددی</span><span id="acc-chat-id" class="account-value mono"></span></div>
+            <div class="account-row"><span class="account-label">سرچ‌های فعال</span><span id="acc-active-count" class="account-value"></span></div>
+          </div>
+        </section>
+
+        <!-- Help -->
+        <section id="view-help" class="view hidden">
+          <h1 class="view-title">❓ راهنما</h1>
+          <div class="card help-card">
+            <p>این ربات هر ۱۵ دقیقه سایت‌های کاریابی رو برای کلمه‌ای که انتخاب می‌کنی چک می‌کنه و به محض پیدا شدن آگهی جدید، توی تلگرام برات می‌فرسته. 🔔</p>
+            <h3>چجوری کار می‌کنه؟</h3>
+            <ol>
+              <li>روی تب «➕ افزودن سرچ» بزن.</li>
+              <li>یه کلمه برای جستجو بفرست.</li>
+              <li>یک یا چند سایت رو انتخاب کن.</li>
+              <li>شهر/استان مورد نظرت رو انتخاب کن (یا «همه‌ی ایران»).</li>
+              <li>نوع همکاری رو انتخاب کن.</li>
+              <li>تمام! از این به بعد آگهی‌های جدید خودکار برات می‌آد.</li>
+            </ol>
+            <h3>تب‌های دیگه</h3>
+            <p>📋 سرچ‌های من — لیست سرچ‌هات با امکان توقف موقت یا حذف.<br>
+            👤 حساب کاربری — اطلاعات حساب و تعداد سرچ‌های فعالت.<br>
+            🆘 پشتیبانی — ارتباط مستقیم با ادمین.</p>
+          </div>
+        </section>
+
+        <!-- Support -->
+        <section id="view-support" class="view hidden">
+          <h1 class="view-title">🆘 پشتیبانی</h1>
+          <div class="card support-card">
+            <p>اگه نظر، پیشنهاد یا مشکلی داری، خوشحال می‌شیم بشنویم 🙏</p>
+            <a id="support-link" class="btn btn-primary" target="_blank">💬 ارتباط با پشتیبانی</a>
+          </div>
+        </section>
+
+      </main>
+
+      <nav class="bottom-nav">
+        <button class="nav-btn" data-go="add"><span class="nav-icon">➕</span><span class="nav-label">افزودن</span></button>
+        <button class="nav-btn" data-go="searches"><span class="nav-icon">📋</span><span class="nav-label">سرچ‌ها</span></button>
+        <button class="nav-btn" data-go="account"><span class="nav-icon">👤</span><span class="nav-label">حساب</span></button>
+        <button class="nav-btn" data-go="support"><span class="nav-icon">🆘</span><span class="nav-label">پشتیبانی</span></button>
+        <button class="nav-btn" data-go="help"><span class="nav-icon">❓</span><span class="nav-label">راهنما</span></button>
+      </nav>
+    </div>
+
+  </div>
+
+  <script src="{% static 'webapp/js/app.js' %}"></script>
+</body>
+</html>

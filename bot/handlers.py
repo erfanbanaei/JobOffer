@@ -229,15 +229,8 @@ async def _create_searches(
         await message.answer("اول دستور /start رو بزن.")
         return
 
-    created_titles = []
-    for provider_key in provider_keys:
-        provider = PROVIDERS.get(provider_key)
-        if provider is None:
-            continue
-        url = provider.build_url(keyword, city, job_types)
-        title = f"{provider.LABEL}: {keyword} ({city})" if city else f"{provider.LABEL}: {keyword}"
-        search_query = await services.create_search_query(user, title, url)
-        created_titles.append(search_query.title)
+    created = await services.create_searches(user, keyword, city, provider_keys, job_types)
+    created_titles = [search_query.title for search_query in created]
 
     if not created_titles:
         await message.answer("هیچ سرچی ساخته نشد.")

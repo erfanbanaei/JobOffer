@@ -5,7 +5,7 @@ from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.client.session.aiohttp import AiohttpSession
 from aiogram.enums import ParseMode
-from aiogram.types import BotCommand
+from aiogram.types import BotCommand, MenuButtonDefault, MenuButtonWebApp, WebAppInfo
 from django.conf import settings
 from django.core.management.base import BaseCommand
 
@@ -43,6 +43,15 @@ class Command(BaseCommand):
                 BotCommand(command="help", description="راهنمای استفاده"),
             ]
         )
+
+        if settings.MINI_APP_URL.startswith("https://"):
+            await bot.set_chat_menu_button(
+                menu_button=MenuButtonWebApp(text="اپلیکیشن", web_app=WebAppInfo(url=settings.MINI_APP_URL))
+            )
+        else:
+            await bot.set_chat_menu_button(menu_button=MenuButtonDefault())
+            logger.warning("MINI_APP_URL is not set to an https:// URL - mini app menu button disabled")
+
         await bot.delete_webhook(drop_pending_updates=True)
         logger.info("Bot started polling")
         await dispatcher.start_polling(bot)

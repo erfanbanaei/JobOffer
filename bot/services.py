@@ -2,6 +2,7 @@ from asgiref.sync import sync_to_async
 
 from accounts.models import TelegramUser
 from jobs.models import SearchQuery
+from jobs.services import create_searches_for_providers
 
 
 @sync_to_async
@@ -26,8 +27,10 @@ def get_user(chat_id: int) -> TelegramUser | None:
 
 
 @sync_to_async
-def create_search_query(user: TelegramUser, title: str, url: str) -> SearchQuery:
-    return SearchQuery.objects.create(user=user, title=title, url=url)
+def create_searches(
+    user: TelegramUser, keyword: str, city: str | None, provider_keys: list[str], job_types: set[str]
+) -> list[SearchQuery]:
+    return create_searches_for_providers(user, keyword, city, provider_keys, job_types)
 
 
 @sync_to_async

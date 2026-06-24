@@ -1,5 +1,6 @@
-from aiogram.types import InlineKeyboardMarkup, ReplyKeyboardMarkup
+from aiogram.types import InlineKeyboardMarkup, KeyboardButton, ReplyKeyboardMarkup, WebAppInfo
 from aiogram.utils.keyboard import InlineKeyboardBuilder, ReplyKeyboardBuilder
+from django.conf import settings
 
 from jobs.models import SearchQuery
 from jobs.providers import IRAN_PROVINCES, JOB_TYPE_OPTIONS, PROVIDERS
@@ -9,6 +10,7 @@ BTN_MY_SEARCHES = "📋 سرچ‌های من"
 BTN_HELP = "❓ راهنما"
 BTN_ACCOUNT = "👤 حساب کاربری"
 BTN_SUPPORT = "🆘 پشتیبانی"
+BTN_MINI_APP = "🚀 اپلیکیشن"
 
 SUPPORT_USERNAME = "MrTakDev"
 CHANNEL_USERNAME = "erfanbanaei_ir"
@@ -16,12 +18,20 @@ CHANNEL_USERNAME = "erfanbanaei_ir"
 
 def main_menu_keyboard() -> ReplyKeyboardMarkup:
     builder = ReplyKeyboardBuilder()
+    rows = []
+
+    if settings.MINI_APP_URL.startswith("https://"):
+        builder.add(KeyboardButton(text=BTN_MINI_APP, web_app=WebAppInfo(url=settings.MINI_APP_URL)))
+        rows.append(1)
+
     builder.button(text=BTN_ADD_SEARCH)
     builder.button(text=BTN_MY_SEARCHES)
     builder.button(text=BTN_ACCOUNT)
     builder.button(text=BTN_SUPPORT)
     builder.button(text=BTN_HELP)
-    builder.adjust(2, 2, 1)
+    rows.extend([2, 2, 1])
+
+    builder.adjust(*rows)
     return builder.as_markup(resize_keyboard=True)
 
 
