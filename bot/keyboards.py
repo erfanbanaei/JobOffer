@@ -10,7 +10,6 @@ BTN_MY_SEARCHES = "📋 سرچ‌های من"
 BTN_HELP = "❓ راهنما"
 BTN_ACCOUNT = "👤 حساب کاربری"
 BTN_SUPPORT = "🆘 پشتیبانی"
-BTN_MINI_APP = "🚀 اپلیکیشن"
 
 SUPPORT_USERNAME = "MrTakDev"
 CHANNEL_USERNAME = "erfanbanaei_ir"
@@ -19,10 +18,6 @@ CHANNEL_USERNAME = "erfanbanaei_ir"
 def main_menu_keyboard() -> ReplyKeyboardMarkup:
     builder = ReplyKeyboardBuilder()
     rows = []
-
-    if settings.MINI_APP_URL.startswith("https://"):
-        builder.add(KeyboardButton(text=BTN_MINI_APP, web_app=WebAppInfo(url=settings.MINI_APP_URL)))
-        rows.append(1)
 
     builder.button(text=BTN_ADD_SEARCH)
     builder.button(text=BTN_MY_SEARCHES)
