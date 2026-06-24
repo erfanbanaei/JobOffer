@@ -81,17 +81,47 @@ celery -A jobbot beat -l info      # در ترمینال جدا
 - **فرانت‌اند**: یه صفحه‌ی تک ([webapp/templates/webapp/index.html](webapp/templates/webapp/index.html)) با تب‌های افزودن سرچ/سرچ‌های من/حساب/پشتیبانی/راهنما، و منطق در [webapp/static/webapp/js/app.js](webapp/static/webapp/js/app.js). از SDK رسمی `telegram-web-app.js` برای تم، دکمه‌ی اصلی (MainButton) و دکمه‌ی بازگشت (BackButton) در ویزارد استفاده می‌شه.
 - منطق ساخت سرچ بین بات و مینی‌اپ مشترکه ([jobs/services.py](jobs/services.py)) تا رفتارشون کاملاً یکسان بمونه.
 
-### راه‌اندازی مینی‌اپ
-1. **نیاز به HTTPS واقعی:** تلگرام فقط URL هایی با `https://` رو برای دکمه‌ی Mini App قبول می‌کنه. باید سرور خودت رو پشت یه دومین با گواهی SSL (مثلاً با Caddy یا nginx + Certbot) قرار بدی؛ این پروژه به‌تنهایی TLS termination نداره.
-2. بعد از بالا آوردن سرور، در `.env` مقدار `MINI_APP_URL` رو ست کن:
-   ```
-   MINI_APP_URL=https://yourdomain.com/app/
-   ```
-3. سرویس `web` رو ری‌استارت کن تا `collectstatic` فایل‌های استاتیک رو با نسخه‌ی hash‌شده بسازه (در `docker-compose.yml` خودکار قبل از اجرای `runserver` انجام می‌شه):
+### راه‌اندازی روی سرور خودت (قدم‌به‌قدم)
+
+تلگرام فقط URL با `https://` رو برای دکمه‌ی Mini App قبول می‌کنه، پس باید پشت یه دومین واقعی با گواهی SSL باشی. یه سرویس **Caddy** به `docker-compose.yml` اضافه شده که این کار رو خودکار انجام می‌ده (گواهی Let's Encrypt رایگان، بدون تنظیم دستی).
+
+1. **یه سرور تهیه کن** (هر VPS با Ubuntu 22.04+ کافیه) و [Docker + docker compose](https://docs.docker.com/engine/install/) رو نصب کن.
+
+2. **دومینت رو به آی‌پی سرور وصل کن** — یه رکورد DNS از نوع `A` بساز که دومینت (مثلاً `bot.yourdomain.com`) رو به آی‌پی سرور اشاره بده. چند دقیقه صبر کن تا DNS پراپاگیت شه.
+
+3. **پروژه رو روی سرور بیار** (کلون گیت یا کپی فایل‌ها) و وارد پوشه‌ش شو.
+
+4. **فایل `.env` رو بساز و کامل کن:**
    ```bash
-   docker compose restart web bot
+   cp .env.example .env
    ```
-4. با ری‌استارت `bot`، دکمه‌ی منوی تلگرام (کنار باکس پیام) خودکار به مینی‌اپ وصل می‌شه، و یه دکمه‌ی «🚀 اپلیکیشن» هم به کیبورد اصلی بات اضافه می‌شه.
+   حداقل این مقادیر رو باید واقعی کنی:
+   ```
+   DJANGO_SECRET_KEY=<یه رشته‌ی تصادفی طولانی>
+   DJANGO_DEBUG=False
+   DJANGO_ALLOWED_HOSTS=bot.yourdomain.com
+   TELEGRAM_BOT_TOKEN=<توکن از BotFather>
+   DOMAIN=bot.yourdomain.com
+   MINI_APP_URL=https://bot.yourdomain.com/app/
+   ```
+   (پراکسی تلگرام `TELEGRAM_PROXY_URL` رو هم اگه سرور خودش پشت فیلترشکن نیست، خالی بگذار — فقط ترافیک به `api.telegram.org` لازمه، نه اسکرپ سایت‌های کاریابی.)
+
+5. **پورت‌های ۸۰ و ۴۴۳ رو در فایروال سرور باز کن** (لازم برای صدور خودکار گواهی SSL توسط Caddy).
+
+6. **همه‌چیز رو بالا بیار:**
+   ```bash
+   docker compose up -d --build
+   ```
+   چند ثانیه طول می‌کشه تا Caddy گواهی SSL رو از Let's Encrypt بگیره. بعدش `https://bot.yourdomain.com/app/` باید مینی‌اپ رو نشون بده (در مرورگر معمولی هم باز می‌شه، فقط چک عضویت کانال و initData واقعی نداره چون از داخل تلگرام نیومدی).
+
+7. **یوزر ادمین بساز (اختیاری، برای پنل `/admin`):**
+   ```bash
+   docker compose exec web python manage.py createsuperuser
+   ```
+
+با بالا آمدن سرویس `bot`، دکمه‌ی منوی تلگرام (کنار باکس پیام) خودکار به مینی‌اپ وصل می‌شه، و یه دکمه‌ی «🚀 اپلیکیشن» هم به کیبورد اصلی بات اضافه می‌شه.
+
+> اگه بعداً `.env` رو عوض کردی (خصوصاً `DOMAIN` یا `MINI_APP_URL`)، باید `docker compose up -d --build` یا حداقل `docker compose restart caddy web bot` رو دوباره بزنی.
 
 > فعلاً سرویس `web` همچنان با `runserver` (سرور توسعه‌ی Django) اجرا می‌شه که برای ترافیک واقعی production مناسب نیست. برای استقرار جدی، جایگزینش با Gunicorn/Uvicorn پشت نیجینکس/Caddy توصیه می‌شه — این تغییر در این مرحله انجام نشده.
 
