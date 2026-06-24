@@ -2,7 +2,7 @@ from html import escape
 from typing import Callable, Coroutine
 
 from aiogram import F, Router
-from aiogram.filters import CommandStart
+from aiogram.filters import Command, CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 
@@ -87,6 +87,7 @@ async def cb_check_membership(callback: CallbackQuery, state: FSMContext) -> Non
     await callback.answer()
 
 
+@router.message(Command("help"))
 @router.message(F.text == BTN_HELP)
 async def cmd_help(message: Message) -> None:
     await message.answer(HELP_TEXT, reply_markup=main_menu_keyboard())
