@@ -12,10 +12,10 @@ def get_or_create_user(
     user, _ = TelegramUser.objects.update_or_create(
         chat_id=chat_id,
         defaults={
-            "username": username,
-            "first_name": first_name,
-            "last_name": last_name,
-            "is_active": True,
+            'username': username,
+            'first_name': first_name,
+            'last_name': last_name,
+            'is_active': True,
         },
     )
     return user
@@ -35,7 +35,7 @@ def create_searches(
 
 @sync_to_async
 def list_search_queries(user: TelegramUser) -> list[SearchQuery]:
-    return list(user.search_queries.order_by("id"))
+    return list(user.search_queries.order_by('id'))
 
 
 @sync_to_async
@@ -55,5 +55,22 @@ def toggle_search_query(user: TelegramUser, search_query_id: int) -> SearchQuery
     if search_query is None:
         return None
     search_query.is_active = not search_query.is_active
-    search_query.save(update_fields=["is_active"])
+    search_query.save(update_fields=['is_active'])
     return search_query
+
+
+@sync_to_async
+def get_user_stats() -> dict:
+    total = TelegramUser.objects.count()
+    active = TelegramUser.objects.filter(is_active=True).count()
+    return {'total': total, 'active': active}
+
+
+@sync_to_async
+def get_recent_users(limit: int = 15) -> list:
+    return list(TelegramUser.objects.order_by('-created_at')[:limit])
+
+
+@sync_to_async
+def get_all_active_chat_ids() -> list:
+    return list(TelegramUser.objects.filter(is_active=True).values_list('chat_id', flat=True))

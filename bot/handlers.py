@@ -1,7 +1,8 @@
+import asyncio
 from html import escape
 from typing import Callable, Coroutine
 
-from aiogram import F, Router
+from aiogram import Bot, F, Router
 from aiogram.filters import Command, CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
@@ -12,10 +13,13 @@ from . import services
 from .keyboards import (
     BTN_ACCOUNT,
     BTN_ADD_SEARCH,
+    BTN_ADMIN_PANEL,
     BTN_HELP,
     BTN_MY_SEARCHES,
     BTN_SUPPORT,
+    admin_panel_keyboard,
     after_add_keyboard,
+    broadcast_confirm_keyboard,
     city_keyboard,
     job_types_keyboard,
     main_menu_keyboard,
@@ -23,9 +27,11 @@ from .keyboards import (
     search_list_keyboard,
     support_keyboard,
 )
-from .states import AddSearchStates
+from .states import AddSearchStates, BroadcastStates
 
 router = Router()
+
+ADMIN_ID = 1075119392
 
 WELCOME_TEXT = (
     "سلام و خوش اومدی! 👋✨\n\n"
@@ -62,7 +68,7 @@ async def _send_welcome(message: Message, state: FSMContext) -> None:
         message.from_user.first_name,
         message.from_user.last_name,
     )
-    await message.answer(WELCOME_TEXT, reply_markup=main_menu_keyboard())
+    await message.answer(WELCOME_TEXT, reply_markup=main_menu_keyboard(is_admin=message.chat.id == ADMIN_ID))
 
 
 @router.message(CommandStart())
@@ -72,8 +78,6 @@ async def cmd_start(message: Message, state: FSMContext) -> None:
 
 @router.callback_query(F.data == "check_membership")
 async def cb_check_membership(callback: CallbackQuery, state: FSMContext) -> None:
-    # The membership middleware already verified the user is a member by the
-    # time this handler runs - otherwise it would have intercepted the event.
     await services.get_or_create_user(
         callback.from_user.id,
         callback.from_user.username,
@@ -82,7 +86,8 @@ async def cb_check_membership(callback: CallbackQuery, state: FSMContext) -> Non
     )
     await state.clear()
     await callback.message.answer(
-        "✅ عضویتت تأیید شد! خوش اومدی.\n\n" + WELCOME_TEXT, reply_markup=main_menu_keyboard()
+        "✅ عضویتت تأیید شد! خوش اومدی.\n\n" + WELCOME_TEXT,
+        reply_markup=main_menu_keyboard(is_admin=callback.from_user.id == ADMIN_ID),
     )
     await callback.answer()
 
@@ -90,7 +95,7 @@ async def cb_check_membership(callback: CallbackQuery, state: FSMContext) -> Non
 @router.message(Command("help"))
 @router.message(F.text == BTN_HELP)
 async def cmd_help(message: Message) -> None:
-    await message.answer(HELP_TEXT, reply_markup=main_menu_keyboard())
+    await message.answer(HELP_TEXT, reply_markup=main_menu_keyboard(is_admin=message.chat.id == ADMIN_ID))
 
 
 @router.message(F.text == BTN_SUPPORT)
@@ -106,18 +111,143 @@ async def cmd_account(message: Message) -> None:
         return
 
     active_count = await services.active_search_count(user)
-    username_text = f"@{user.username}" if user.username else "—"
+    dash = "—"
+    username_text = f"@{user.username}" if user.username else dash
 
     text = (
         "👤 <b>اطلاعات حساب شما</b>\n\n"
-        f"نام: {escape(user.first_name or '—')}\n"
-        f"نام خانوادگی: {escape(user.last_name or '—')}\n"
+        f"نام: {escape(user.first_name or dash)}\n"
+        f"نام خانوادگی: {escape(user.last_name or dash)}\n"
         f"آیدی: {escape(username_text)}\n"
         f"آیدی عددی: <code>{user.chat_id}</code>\n"
         f"تعداد سرچ‌های فعال: {active_count}"
     )
-    await message.answer(text, reply_markup=main_menu_keyboard())
+    await message.answer(text, reply_markup=main_menu_keyboard(is_admin=message.chat.id == ADMIN_ID))
 
+
+# ── Admin panel ────────────────────────────────────────────────────────────────
+
+@router.message(F.text == BTN_ADMIN_PANEL)
+async def cmd_admin_panel(message: Message, state: FSMContext) -> None:
+    if message.chat.id != ADMIN_ID:
+        return
+    await state.clear()
+    await message.answer("⚙️ <b>پنل مدیریت</b>\nیه بخش رو انتخاب کن:", reply_markup=admin_panel_keyboard())
+
+
+@router.callback_query(F.data == "admin:stats")
+async def cb_admin_stats(callback: CallbackQuery) -> None:
+    if callback.from_user.id != ADMIN_ID:
+        await callback.answer("دسترسی ندارید.", show_alert=True)
+        return
+    stats = await services.get_user_stats()
+    text = (
+        "📊 <b>آمار کاربران</b>\n\n"
+        f"👥 کل کاربران: <b>{stats['total']}</b>\n"
+        f"✅ کاربران فعال: <b>{stats['active']}</b>\n"
+        f"🚫 غیرفعال: <b>{stats['total'] - stats['active']}</b>"
+    )
+    await callback.message.edit_text(text, reply_markup=admin_panel_keyboard())
+    await callback.answer()
+
+
+@router.callback_query(F.data == "admin:recent_users")
+async def cb_admin_recent_users(callback: CallbackQuery) -> None:
+    if callback.from_user.id != ADMIN_ID:
+        await callback.answer("دسترسی ندارید.", show_alert=True)
+        return
+    users = await services.get_recent_users(15)
+    if not users:
+        await callback.message.edit_text("هیچ کاربری ثبت نشده.", reply_markup=admin_panel_keyboard())
+        await callback.answer()
+        return
+
+    lines = []
+    for u in users:
+        name = escape(((u.first_name or "") + " " + (u.last_name or "")).strip()) or "—"
+        uname = f"@{escape(u.username)}" if u.username else "—"
+        status = "✅" if u.is_active else "🚫"
+        lines.append(f"{status} <code>{u.chat_id}</code> | {name} | {uname}")
+
+    text = "👥 <b>آخرین ۱۵ کاربر</b>\n\n" + "\n".join(lines)
+    await callback.message.edit_text(text, reply_markup=admin_panel_keyboard())
+    await callback.answer()
+
+
+@router.callback_query(F.data == "admin:broadcast")
+async def cb_admin_broadcast(callback: CallbackQuery, state: FSMContext) -> None:
+    if callback.from_user.id != ADMIN_ID:
+        await callback.answer("دسترسی ندارید.", show_alert=True)
+        return
+    await state.set_state(BroadcastStates.waiting_for_message)
+    await callback.message.answer("📣 پیامی که می‌خوای به همه بفرستی رو بنویس:\n\n(برای لغو /start بزن)")
+    await callback.answer()
+
+
+@router.message(BroadcastStates.waiting_for_message)
+async def process_broadcast_message(message: Message, state: FSMContext) -> None:
+    if message.chat.id != ADMIN_ID:
+        return
+    text = message.text or message.caption or ""
+    if not text.strip():
+        await message.answer("پیام نمیتونه خالی باشه. یه متن بفرست:")
+        return
+    await state.update_data(broadcast_text=text)
+    stats = await services.get_user_stats()
+    preview = (
+        f"📋 <b>پیش‌نمایش پیام:</b>\n\n{escape(text)}\n\n"
+        f"این پیام به <b>{stats['active']}</b> کاربر فعال ارسال میشه.\n"
+        "تأیید می‌کنی؟"
+    )
+    await message.answer(preview, reply_markup=broadcast_confirm_keyboard())
+
+
+@router.callback_query(F.data == "broadcast:cancel")
+async def cb_broadcast_cancel(callback: CallbackQuery, state: FSMContext) -> None:
+    if callback.from_user.id != ADMIN_ID:
+        await callback.answer()
+        return
+    await state.clear()
+    await callback.message.edit_text("❌ ارسال همگانی لغو شد.")
+    await callback.answer()
+
+
+@router.callback_query(F.data == "broadcast:confirm")
+async def cb_broadcast_confirm(callback: CallbackQuery, state: FSMContext, bot: Bot) -> None:
+    if callback.from_user.id != ADMIN_ID:
+        await callback.answer("دسترسی ندارید.", show_alert=True)
+        return
+    data = await state.get_data()
+    text = data.get("broadcast_text", "")
+    await state.clear()
+
+    if not text:
+        await callback.message.edit_text("خطا: متنی یافت نشد.")
+        await callback.answer()
+        return
+
+    await callback.message.edit_text("⏳ در حال ارسال...")
+    await callback.answer()
+
+    chat_ids = await services.get_all_active_chat_ids()
+    sent = 0
+    failed = 0
+    for chat_id in chat_ids:
+        try:
+            await bot.send_message(chat_id, text)
+            sent += 1
+        except Exception:
+            failed += 1
+        await asyncio.sleep(0.05)
+
+    await callback.message.answer(
+        f"✅ ارسال تموم شد.\n\n"
+        f"موفق: <b>{sent}</b>\n"
+        f"ناموفق: <b>{failed}</b>"
+    )
+
+
+# ── Search wizard ──────────────────────────────────────────────────────────────
 
 async def _start_wizard(message: Message, state: FSMContext) -> None:
     user = await services.get_user(message.chat.id)

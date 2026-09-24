@@ -5,63 +5,81 @@ from django.conf import settings
 from jobs.models import SearchQuery
 from jobs.providers import IRAN_PROVINCES, JOB_TYPE_OPTIONS, PROVIDERS
 
-BTN_ADD_SEARCH = "➕ افزودن سرچ"
-BTN_MY_SEARCHES = "📋 سرچ‌های من"
-BTN_HELP = "❓ راهنما"
-BTN_ACCOUNT = "👤 حساب کاربری"
-BTN_SUPPORT = "🆘 پشتیبانی"
+BTN_ADD_SEARCH = '➕ افزودن سرچ'
+BTN_MY_SEARCHES = '📋 سرچ‌های من'
+BTN_HELP = '❓ راهنما'
+BTN_ACCOUNT = '👤 حساب کاربری'
+BTN_SUPPORT = '🆘 پشتیبانی'
+BTN_ADMIN_PANEL = '⚙️ وضعیت ربات'
 
-SUPPORT_USERNAME = "MrTakDev"
-CHANNEL_USERNAME = "erfanbanaei_ir"
+SUPPORT_USERNAME = 'MrTakDev'
+CHANNEL_USERNAME = 'erfanbanaei_ir'
 
 
-def main_menu_keyboard() -> ReplyKeyboardMarkup:
+def main_menu_keyboard(is_admin: bool = False) -> ReplyKeyboardMarkup:
     builder = ReplyKeyboardBuilder()
-    rows = []
-
     builder.button(text=BTN_ADD_SEARCH)
     builder.button(text=BTN_MY_SEARCHES)
     builder.button(text=BTN_ACCOUNT)
     builder.button(text=BTN_SUPPORT)
     builder.button(text=BTN_HELP)
-    rows.extend([2, 2, 1])
-
+    rows = [2, 2, 1]
+    if is_admin:
+        builder.button(text=BTN_ADMIN_PANEL)
+        rows = [2, 2, 1, 1]
     builder.adjust(*rows)
     return builder.as_markup(resize_keyboard=True)
+
+
+def admin_panel_keyboard() -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    builder.button(text='📊 آمار کاربران', callback_data='admin:stats')
+    builder.button(text='👥 آخرین کاربران', callback_data='admin:recent_users')
+    builder.button(text='📣 ارسال همگانی', callback_data='admin:broadcast')
+    builder.adjust(2, 1)
+    return builder.as_markup()
+
+
+def broadcast_confirm_keyboard() -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    builder.button(text='✅ بله، ارسال کن', callback_data='broadcast:confirm')
+    builder.button(text='❌ لغو', callback_data='broadcast:cancel')
+    builder.adjust(2)
+    return builder.as_markup()
 
 
 def search_list_keyboard(queries: list[SearchQuery]) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     for query in queries:
-        status_icon = "🔵 توقف" if query.is_active else "🟢 ازسرگیری"
-        builder.button(text=f"{status_icon} | {query.title}", callback_data=f"toggle:{query.id}")
-        builder.button(text="🔴 حذف", callback_data=f"del:{query.id}")
-    builder.button(text="➕ افزودن سرچ جدید", callback_data="add_search")
+        status_icon = '🔵 توقف' if query.is_active else '🟢 ازسرگیری'
+        builder.button(text=f'{status_icon} | {query.title}', callback_data=f'toggle:{query.id}')
+        builder.button(text='🔴 حذف', callback_data=f'del:{query.id}')
+    builder.button(text='➕ افزودن سرچ جدید', callback_data='add_search')
     builder.adjust(*([2] * len(queries)), 1)
     return builder.as_markup()
 
 
 def after_add_keyboard() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
-    builder.button(text="📋 مشاهده سرچ‌های من", callback_data="list_searches")
+    builder.button(text='📋 مشاهده سرچ‌های من', callback_data='list_searches')
     return builder.as_markup()
 
 
 def providers_keyboard(selected: set[str]) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     for key, provider in PROVIDERS.items():
-        mark = "✅" if key in selected else "⬜"
-        builder.button(text=f"{mark} {provider.LABEL}", callback_data=f"provider:{key}")
-    builder.button(text="➡️ تأیید و ادامه", callback_data="provider:confirm")
+        mark = '✅' if key in selected else '⬜'
+        builder.button(text=f'{mark} {provider.LABEL}', callback_data=f'provider:{key}')
+    builder.button(text='➡️ تأیید و ادامه', callback_data='provider:confirm')
     builder.adjust(2, 2, 1)
     return builder.as_markup()
 
 
 def city_keyboard() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
-    builder.button(text="🌍 همه‌ی ایران (بدون فیلتر شهر)", callback_data="city:__all__")
+    builder.button(text='🌍 همه‌ی ایران (بدون فیلتر شهر)', callback_data='city:__all__')
     for city in IRAN_PROVINCES:
-        builder.button(text=city, callback_data=f"city:{city}")
+        builder.button(text=city, callback_data=f'city:{city}')
     builder.adjust(1, *([3] * (len(IRAN_PROVINCES) // 3 + 1)))
     return builder.as_markup()
 
@@ -69,22 +87,22 @@ def city_keyboard() -> InlineKeyboardMarkup:
 def job_types_keyboard(selected: set[str]) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     for key, label in JOB_TYPE_OPTIONS:
-        mark = "✅" if key in selected else "⬜"
-        builder.button(text=f"{mark} {label}", callback_data=f"jt:{key}")
-    builder.button(text="➡️ تأیید و ادامه", callback_data="jt:confirm")
+        mark = '✅' if key in selected else '⬜'
+        builder.button(text=f'{mark} {label}', callback_data=f'jt:{key}')
+    builder.button(text='➡️ تأیید و ادامه', callback_data='jt:confirm')
     builder.adjust(2, 2, 1)
     return builder.as_markup()
 
 
 def support_keyboard() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
-    builder.button(text="💬 ارتباط با پشتیبانی", url=f"https://t.me/{SUPPORT_USERNAME}")
+    builder.button(text='💬 ارتباط با پشتیبانی', url=f'https://t.me/{SUPPORT_USERNAME}')
     return builder.as_markup()
 
 
 def join_channel_keyboard() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
-    builder.button(text="📢 عضویت در کانال", url=f"https://t.me/{CHANNEL_USERNAME}")
-    builder.button(text="✅ عضو شدم، بررسی کن", callback_data="check_membership")
+    builder.button(text='📢 عضویت در کانال', url=f'https://t.me/{CHANNEL_USERNAME}')
+    builder.button(text='✅ عضو شدم، بررسی کن', callback_data='check_membership')
     builder.adjust(1)
     return builder.as_markup()
